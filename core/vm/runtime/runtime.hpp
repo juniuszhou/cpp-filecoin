@@ -141,6 +141,8 @@ namespace fc::vm::runtime {
     /// Update actor state CID
     virtual outcome::result<void> commit(const ActorSubstateCID &new_state) = 0;
 
+    virtual outcome::result<Address> resolveAddress(const Address &address) = 0;
+
     /**
      * Commit actor state
      * @tparam T - POD state type
