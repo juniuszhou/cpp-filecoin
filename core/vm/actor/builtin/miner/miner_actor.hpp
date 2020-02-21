@@ -9,17 +9,21 @@
 #include "codec/cbor/streams_annotation.hpp"
 #include "primitives/address/address.hpp"
 #include "primitives/address/address_codec.hpp"
-#include "vm/actor/actor.hpp"
+#include "vm/actor/actor_method.hpp"
 #include "vm/actor/builtin/miner/types.hpp"
 
 namespace fc::vm::actor::builtin::miner {
-
   constexpr MethodNumber kGetControlAddresses{2};
+
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
   outcome::result<InvocationOutput> constructor(const Actor &actor,
                                                 Runtime &runtime,
                                                 const MethodParams &params);
+
+  outcome::result<InvocationOutput> controlAdresses(const Actor &actor,
+                                                    Runtime &runtime,
+                                                    const MethodParams &params);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner

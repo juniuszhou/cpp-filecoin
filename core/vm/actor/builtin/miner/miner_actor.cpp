@@ -76,7 +76,19 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  outcome::result<InvocationOutput> controlAdresses(
+      const Actor &actor, Runtime &runtime, const MethodParams &params) {
+    OUTCOME_TRY(state,
+                runtime.getIpfsDatastore()->getCbor<MinerActorState>(
+                    runtime.getCurrentActorState()));
+    OUTCOME_TRY(result,
+                codec::cbor::encode(GetControlAddressesReturn{
+                    state.info.owner, state.info.worker}));
+    return InvocationOutput{Buffer{result}};
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
+      {kGetControlAddresses, ActorMethod(controlAdresses)},
   };
 }  // namespace fc::vm::actor::builtin::miner

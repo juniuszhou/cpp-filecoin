@@ -97,7 +97,7 @@ namespace fc::vm::actor::builtin::miner {
     PeerId peer_id;
   };
 
-  struct GetControlAddressesResult {
+  struct GetControlAddressesReturn {
     Address owner;
     Address worker;
   };
@@ -169,7 +169,7 @@ namespace fc::vm::actor::builtin::miner {
 
   CBOR_TUPLE(ConstructorParams, owner, worker, sector_size, peer_id)
 
-  CBOR_TUPLE(GetControlAddressesResult, owner, worker)
+  CBOR_TUPLE(GetControlAddressesReturn, owner, worker)
 
   CBOR_TUPLE(ChangeWorkerAddressParams, new_worker)
 
