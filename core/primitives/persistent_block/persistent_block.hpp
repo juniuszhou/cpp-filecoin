@@ -6,10 +6,10 @@
 #ifndef CPP_FILECOIN_CORE_BLOCKCHAIN_BLOCK_PERSISTENT_BLOCK_HPP
 #define CPP_FILECOIN_CORE_BLOCKCHAIN_BLOCK_PERSISTENT_BLOCK_HPP
 
-#include "storage/ipfs/ipfs_block.hpp"
+#include "storage/ipld/ipld_block.hpp"
 
 namespace fc::primitives::blockchain::block {
-  class PersistentBlock : public storage::ipfs::IpfsBlock {
+  class PersistentBlock : public storage::ipld::IPLDBlock {
    public:
     virtual ~PersistentBlock() override = default;
 

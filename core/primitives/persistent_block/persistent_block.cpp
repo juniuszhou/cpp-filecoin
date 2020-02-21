@@ -15,7 +15,7 @@ namespace fc::primitives::blockchain::block {
     return cid_;
   }
 
-  const common::Buffer  &PersistentBlock::getRawBytes() const {
+  const common::Buffer &PersistentBlock::getRawBytes() const {
     return data_;
   }
 
