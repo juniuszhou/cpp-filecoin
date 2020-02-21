@@ -12,7 +12,7 @@
 #include "primitives/big_int.hpp"
 #include "primitives/chain_epoch/chain_epoch.hpp"
 #include "primitives/rle_bitset/rle_bitset.hpp"
-#include "proofs/proofs.hpp"
+#include "proofs/sector.hpp"
 
 namespace fc::vm::actor::builtin::miner {
   using common::Buffer;
@@ -22,7 +22,8 @@ namespace fc::vm::actor::builtin::miner {
   using primitives::EpochDuration;
   using primitives::RleBitset;
   using primitives::address::Address;
-  using proofs::Proof;
+  using proofs::sector::OnChainPoStVerifyInfo;
+  using proofs::sector::SealProof;
 
   using PeerId = std::string;
 
@@ -109,11 +110,11 @@ namespace fc::vm::actor::builtin::miner {
     PeerId new_id;
   };
 
-  // TODO: SubmitWindowedPoStParams = abi.OnChainPoStVerifyInfo
+  using SubmitWindowedPoStParams = OnChainPoStVerifyInfo;
 
   struct ProveCommitSectorParams {
     uint64_t sector;
-    Proof proof;
+    SealProof proof;
   };
 
   struct ExtendSectorExpirationParams {
