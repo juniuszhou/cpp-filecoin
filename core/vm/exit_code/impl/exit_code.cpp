@@ -38,6 +38,13 @@ namespace fc::vm {
       case E::ACCOUNT_ACTOR_RESOLVE_NOT_ACCOUNT_ACTOR:
         return 1;
 
+      case E::MINER_ACTOR_OWNER_NOT_SIGNABLE:
+      case E::MINER_ACTOR_MINER_NOT_ACCOUNT:
+      case E::MINER_ACTOR_MINER_NOT_BLS:
+        return 16;  // ErrIllegalArgument in actor-specs
+      case E::MINER_ACTOR_WRONG_CALLER:
+        return 18;  // ErrForbidden in actor-specs
+
       case E::MULTISIG_ACTOR_WRONG_CALLER:
         return 1;
       case E::MULTISIG_ACTOR_ILLEGAL_ARGUMENT:

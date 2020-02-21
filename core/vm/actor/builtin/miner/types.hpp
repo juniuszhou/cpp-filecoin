@@ -28,7 +28,7 @@ namespace fc::vm::actor::builtin::miner {
   using PeerId = std::string;
 
   struct PoStState {
-    uint64_t proving_period_start;
+    ChainEpoch proving_period_start;
     uint64_t num_consecutive_failures;
   };
 

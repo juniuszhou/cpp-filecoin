@@ -17,13 +17,11 @@ namespace fc::vm::actor::builtin::miner {
   constexpr MethodNumber kGetControlAddresses{2};
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
-  struct GetControlAddressesReturn {
-    Address owner;
-    Address worker;
-  };
+  outcome::result<InvocationOutput> constructor(const Actor &actor,
+                                                Runtime &runtime,
+                                                const MethodParams &params);
 
-  CBOR_TUPLE(GetControlAddressesReturn, owner, worker);
-
+  extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner
 
 #endif  // CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MINER_MINER_ACTOR_HPP
