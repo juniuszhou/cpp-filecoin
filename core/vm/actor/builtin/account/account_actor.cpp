@@ -42,9 +42,7 @@ namespace fc::vm::actor::builtin::account {
     return account_actor_state.address;
   }
 
-  outcome::result<InvocationOutput> pubkeyAddress(const Actor &actor,
-                                                  Runtime &runtime,
-                                                  const MethodParams &params) {
+  ACTOR_METHOD(pubkeyAddress) {
     OUTCOME_TRY(state,
                 runtime.getIpfsDatastore()->getCbor<AccountActorState>(
                     runtime.getCurrentActorState()));

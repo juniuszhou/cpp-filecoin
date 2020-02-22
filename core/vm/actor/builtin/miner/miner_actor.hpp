@@ -17,13 +17,9 @@ namespace fc::vm::actor::builtin::miner {
 
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
-  outcome::result<InvocationOutput> constructor(const Actor &actor,
-                                                Runtime &runtime,
-                                                const MethodParams &params);
+  ACTOR_METHOD(constructor);
 
-  outcome::result<InvocationOutput> controlAdresses(const Actor &actor,
-                                                    Runtime &runtime,
-                                                    const MethodParams &params);
+  ACTOR_METHOD(controlAdresses);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner

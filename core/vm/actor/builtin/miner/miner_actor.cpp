@@ -44,17 +44,16 @@ namespace fc::vm::actor::builtin::miner {
     return std::move(id);
   }
 
-  outcome::result<InvocationOutput> constructor(
-      const Actor &actor, Runtime &runtime, const MethodParams &params_raw) {
+  ACTOR_METHOD(constructor) {
     if (runtime.getImmediateCaller() != kInitAddress) {
       return VMExitCode::MINER_ACTOR_WRONG_CALLER;
     }
-    OUTCOME_TRY(params, decodeActorParams<ConstructorParams>(params_raw));
+    OUTCOME_TRY(params2, decodeActorParams<ConstructorParams>(params));
     auto ipld = runtime.getIpfsDatastore();
     OUTCOME_TRY(empty_amt, Amt{ipld}.flush());
     OUTCOME_TRY(empty_hamt, Hamt{ipld}.flush());
-    OUTCOME_TRY(owner, resolveOwnerAddress(runtime, params.owner));
-    OUTCOME_TRY(worker, resolveWorkerAddress(runtime, params.worker));
+    OUTCOME_TRY(owner, resolveOwnerAddress(runtime, params2.owner));
+    OUTCOME_TRY(worker, resolveWorkerAddress(runtime, params2.worker));
     MinerActorState state{
         empty_hamt,
         empty_amt,
@@ -64,8 +63,8 @@ namespace fc::vm::actor::builtin::miner {
             owner,
             worker,
             boost::none,
-            params.peer_id,
-            params.sector_size,
+            params2.peer_id,
+            params2.sector_size,
         },
         {
             kChainEpochUndefined,
@@ -76,8 +75,7 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
-  outcome::result<InvocationOutput> controlAdresses(
-      const Actor &actor, Runtime &runtime, const MethodParams &params) {
+  ACTOR_METHOD(controlAdresses) {
     OUTCOME_TRY(state,
                 runtime.getIpfsDatastore()->getCbor<MinerActorState>(
                     runtime.getCurrentActorState()));

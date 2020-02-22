@@ -40,9 +40,7 @@ namespace fc::vm::actor::builtin::account {
 
   CBOR_TUPLE(AccountActorState, address)
 
-  outcome::result<InvocationOutput> pubkeyAddress(const Actor &actor,
-                                                  Runtime &runtime,
-                                                  const MethodParams &params);
+  ACTOR_METHOD(pubkeyAddress);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::account
