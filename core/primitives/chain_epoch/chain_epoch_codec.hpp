@@ -9,6 +9,7 @@
 #include "primitives/chain_epoch/chain_epoch.hpp"
 
 namespace fc::primitives::chain_epoch {
+  std::string uvarintKey(uint64_t value);
 
   std::string encodeToByteString(const ChainEpoch &epoch);
 }
