@@ -10,12 +10,20 @@
 
 namespace fc::vm::actor::builtin::miner {
   using primitives::ChainEpoch;
+  using primitives::EpochDuration;
+
+  // TODO(turuslan): FIL-128 move to storage power actor
+  constexpr EpochDuration kWindowedPostChallengeDuration{240};
 
   constexpr ChainEpoch kPoStLookback{1};
 
   constexpr auto kElectionLookback{kPoStLookback};
 
+  constexpr size_t kNumWindowedPoStSectors{200};
+
   constexpr auto kWorkerKeyChangeDelay{2 * kElectionLookback};
+
+  constexpr EpochDuration kProvingPeriod{300};
 }  // namespace fc::vm::actor::builtin::miner
 
 #endif  // CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MINER_POLICY_HPP

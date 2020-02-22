@@ -15,10 +15,14 @@
 namespace fc::vm::actor::builtin::miner {
   using primitives::kChainEpochUndefined;
   using primitives::address::Protocol;
+  using proofs::sector::PoStCandidate;
+  using proofs::sector::SectorInfo;
+  using runtime::DomainSeparationTag;
   using storage::amt::Amt;
   using storage::hamt::Hamt;
   using storage_power::EnrollCronEventParams;
   using storage_power::kEnrollCronEventMethodNumber;
+  using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
 
   outcome::result<Address> resolveOwnerAddress(Runtime &runtime,
                                                const Address &address) {
@@ -61,6 +65,67 @@ namespace fc::vm::actor::builtin::miner {
                              kEnrollCronEventMethodNumber,
                              MethodParams{params},
                              0));
+    return outcome::success();
+  }
+
+  bool hasDuplicateTickets(const std::vector<PoStCandidate> &candidates) {
+    std::set<int64_t> set;
+    for (auto &candidate : candidates) {
+      if (!set.insert(candidate.challenge_index).second) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  outcome::result<void> verifyWidowedPost(
+      Runtime &runtime,
+      const MinerActorState &state,
+      const SubmitWindowedPoStParams &params) {
+    if (hasDuplicateTickets(params.candidates)) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+    if (params.candidates.size() != kNumWindowedPoStSectors) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+
+    std::vector<SectorInfo> sectors;
+    OUTCOME_TRY(
+        Amt(runtime.getIpfsDatastore(), state.proving_set)
+            .visit([&](auto, auto &raw) -> outcome::result<void> {
+              OUTCOME_TRY(sector, codec::cbor::decode<SectorOnChainInfo>(raw));
+              if (sector.declared_fault_epoch != kChainEpochUndefined
+                  || sector.declared_fault_duration != kChainEpochUndefined) {
+                return VMExitCode::MINER_ACTOR_ILLEGAL_STATE;
+              }
+              if (state.fault_set.find(sector.info.sector)
+                  == state.fault_set.end()) {
+                sectors.push_back({
+                    sector.info.sector,
+                    sector.info.sealed_cid,
+                });
+              }
+              return outcome::success();
+            }));
+
+    // TODO: ensure message.to is id-address
+    OUTCOME_TRY(seed, codec::cbor::encode(runtime.getMessage().get().to));
+    OUTCOME_TRY(
+        verified,
+        runtime.verifyPoSt(
+            state.info.sector_size,
+            {
+                runtime.getRandomness(DomainSeparationTag::PoStDST,
+                                      state.post_state.proving_period_start,
+                                      Buffer{seed}),
+                {},
+                params.candidates,
+                params.proofs,
+                sectors,
+            }));
+    if (!verified) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
     return outcome::success();
   }
 
@@ -133,6 +198,29 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(submitWindowedPoSt) {
+    OUTCOME_TRY(params2, decodeActorParams<SubmitWindowedPoStParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    if (runtime.getImmediateCaller() != state.info.worker) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    if (runtime.getCurrentEpoch() > state.post_state.proving_period_start
+                                        + kWindowedPostChallengeDuration) {
+      return VMExitCode::MINER_ACTOR_POST_TOO_LATE;
+    }
+    if (runtime.getCurrentEpoch() <= state.post_state.proving_period_start) {
+      return VMExitCode::MINER_ACTOR_POST_TOO_EARLY;
+    }
+    OUTCOME_TRY(verifyWidowedPost(runtime, state, params2));
+    state.post_state.num_consecutive_failures = 0;
+    state.post_state.proving_period_start += kProvingPeriod;
+    state.proving_set = state.sectors;
+    OUTCOME_TRY(runtime.commitState(state));
+    OUTCOME_TRY(runtime.send(
+        kStoragePowerAddress, kOnMinerSurprisePoStSuccessMethodNumber, {}, 0));
+    return outcome::success();
+  }
+
   ACTOR_METHOD(onDeleteMiner) {
     if (runtime.getImmediateCaller() != kStoragePowerAddress) {
       return VMExitCode::MINER_ACTOR_WRONG_CALLER;
@@ -146,6 +234,7 @@ namespace fc::vm::actor::builtin::miner {
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
       {kChangeWorkerAddressMethodNumber, ActorMethod(changeWorkerAddress)},
       {kChangePeerIdMethodNumber, ActorMethod(changePeerId)},
+      {kSubmitWindowedPoStMethodNumber, ActorMethod(submitWindowedPoSt)},
       {kOnDeleteMinerMethodNumber, ActorMethod(onDeleteMiner)},
   };
 }  // namespace fc::vm::actor::builtin::miner
