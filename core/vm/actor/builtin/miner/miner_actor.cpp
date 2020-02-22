@@ -93,7 +93,7 @@ namespace fc::vm::actor::builtin::miner {
 
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
-      {kGetControlAddresses, ActorMethod(controlAdresses)},
-      {kChangePeerId, ActorMethod(changePeerId)},
+      {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
+      {kChangePeerIdMethodNumber, ActorMethod(changePeerId)},
   };
 }  // namespace fc::vm::actor::builtin::miner
