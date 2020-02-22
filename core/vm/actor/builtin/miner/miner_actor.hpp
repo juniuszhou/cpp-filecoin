@@ -14,6 +14,7 @@
 
 namespace fc::vm::actor::builtin::miner {
   constexpr MethodNumber kGetControlAddressesMethodNumber{2};
+  constexpr MethodNumber kChangeWorkerAddressMethodNumber{3};
   constexpr MethodNumber kChangePeerIdMethodNumber{4};
 
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
@@ -21,6 +22,8 @@ namespace fc::vm::actor::builtin::miner {
   ACTOR_METHOD(constructor);
 
   ACTOR_METHOD(controlAdresses);
+
+  ACTOR_METHOD(changeWorkerAddress);
 
   ACTOR_METHOD(changePeerId);
 

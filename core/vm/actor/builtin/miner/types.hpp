@@ -57,7 +57,7 @@ namespace fc::vm::actor::builtin::miner {
 
   struct WorkerKeyChange {
     Address new_worker;
-    uint64_t effective_at;
+    ChainEpoch effective_at;
   };
 
   struct MinerInfo {

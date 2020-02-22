@@ -55,6 +55,11 @@ namespace fc::vm::actor::builtin::storage_power {
     TokenAmount requested;
   };
 
+  struct EnrollCronEventParams {
+    ChainEpoch event_epoch;
+    Buffer payload;
+  };
+
   class StoragePowerActorMethods {
    public:
     static ACTOR_METHOD(construct);
@@ -72,6 +77,8 @@ namespace fc::vm::actor::builtin::storage_power {
   CBOR_TUPLE(AddBalanceParameters, miner);
 
   CBOR_TUPLE(WithdrawBalanceParameters, miner, requested);
+
+  CBOR_TUPLE(EnrollCronEventParams, event_epoch, payload);
 
 }  // namespace fc::vm::actor::builtin::storage_power
 
