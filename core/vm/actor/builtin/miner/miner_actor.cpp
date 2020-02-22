@@ -76,9 +76,7 @@ namespace fc::vm::actor::builtin::miner {
   }
 
   ACTOR_METHOD(controlAdresses) {
-    OUTCOME_TRY(state,
-                runtime.getIpfsDatastore()->getCbor<MinerActorState>(
-                    runtime.getCurrentActorState()));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
     OUTCOME_TRY(result,
                 codec::cbor::encode(GetControlAddressesReturn{
                     state.info.owner, state.info.worker}));

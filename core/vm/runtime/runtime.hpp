@@ -141,7 +141,14 @@ namespace fc::vm::runtime {
     /// Update actor state CID
     virtual outcome::result<void> commit(const ActorSubstateCID &new_state) = 0;
 
+    /// Resolve address to id-address
     virtual outcome::result<Address> resolveAddress(const Address &address) = 0;
+
+    /// Get decoded current actor state
+    template <typename T>
+    outcome::result<T> getCurrentActorStateCbor() {
+      return getIpfsDatastore()->getCbor<T>(getCurrentActorState());
+    }
 
     /**
      * Commit actor state
