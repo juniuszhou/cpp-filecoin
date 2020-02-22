@@ -12,6 +12,7 @@ namespace fc::proofs::sector {
   using common::Buffer;
 
   using RegisteredProof = int64_t;
+  using PoStRandomness = Randomness;
 
   struct SealProof {
     Buffer proof;
@@ -45,6 +46,19 @@ namespace fc::proofs::sector {
     std::vector<PoStProof> proofs;
   };
 
+  struct SectorInfo {
+    uint64_t sector;
+    CID sealed_cid;
+  };
+
+  struct PoStVerifyInfo {
+    PoStRandomness randomness;
+    CID sealed_cid;
+    std::vector<PoStCandidate> candidates;
+    std::vector<PoStProof> proofs;
+    std::vector<SectorInfo> eligible_sectors;
+  };
+
   CBOR_TUPLE(SealProof, proof)
 
   CBOR_TUPLE(PoStProof, proof)
@@ -53,7 +67,12 @@ namespace fc::proofs::sector {
 
   CBOR_TUPLE(PrivatePoStCandidateProof, registered_proof, externalized)
 
-  CBOR_TUPLE(PoStCandidate, registered_proof, partial_ticket, private_proof, sector, challenge_index)
+  CBOR_TUPLE(PoStCandidate,
+             registered_proof,
+             partial_ticket,
+             private_proof,
+             sector,
+             challenge_index)
 
   CBOR_TUPLE(OnChainPoStVerifyInfo, proof_type, candidates, proofs)
 }  // namespace fc::proofs::sector
