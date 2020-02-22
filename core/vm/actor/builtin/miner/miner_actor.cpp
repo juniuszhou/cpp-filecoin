@@ -133,10 +133,19 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(onDeleteMiner) {
+    if (runtime.getImmediateCaller() != kStoragePowerAddress) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    OUTCOME_TRY(runtime.deleteActor());
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
       {kChangeWorkerAddressMethodNumber, ActorMethod(changeWorkerAddress)},
       {kChangePeerIdMethodNumber, ActorMethod(changePeerId)},
+      {kOnDeleteMinerMethodNumber, ActorMethod(onDeleteMiner)},
   };
 }  // namespace fc::vm::actor::builtin::miner
