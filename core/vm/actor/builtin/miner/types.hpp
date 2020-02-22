@@ -106,7 +106,7 @@ namespace fc::vm::actor::builtin::miner {
     Address new_worker;
   };
 
-  struct ChangePeerIDParams {
+  struct ChangePeerIdParams {
     PeerId new_id;
   };
 
@@ -173,7 +173,7 @@ namespace fc::vm::actor::builtin::miner {
 
   CBOR_TUPLE(ChangeWorkerAddressParams, new_worker)
 
-  CBOR_TUPLE(ChangePeerIDParams, new_id)
+  CBOR_TUPLE(ChangePeerIdParams, new_id)
 
   CBOR_TUPLE(ProveCommitSectorParams, sector, proof)
 

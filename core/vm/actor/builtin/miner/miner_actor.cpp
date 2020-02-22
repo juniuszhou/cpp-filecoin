@@ -83,8 +83,17 @@ namespace fc::vm::actor::builtin::miner {
     return InvocationOutput{Buffer{result}};
   }
 
+  ACTOR_METHOD(changePeerId) {
+    OUTCOME_TRY(params2, decodeActorParams<ChangePeerIdParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    state.info.peer_id = params2.new_id;
+    OUTCOME_TRY(runtime.commitState(state));
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddresses, ActorMethod(controlAdresses)},
+      {kChangePeerId, ActorMethod(changePeerId)},
   };
 }  // namespace fc::vm::actor::builtin::miner

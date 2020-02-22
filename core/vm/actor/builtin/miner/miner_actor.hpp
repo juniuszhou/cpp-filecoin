@@ -14,12 +14,15 @@
 
 namespace fc::vm::actor::builtin::miner {
   constexpr MethodNumber kGetControlAddresses{2};
+  constexpr MethodNumber kChangePeerId{4};
 
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
   ACTOR_METHOD(constructor);
 
   ACTOR_METHOD(controlAdresses);
+
+  ACTOR_METHOD(changePeerId);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner
