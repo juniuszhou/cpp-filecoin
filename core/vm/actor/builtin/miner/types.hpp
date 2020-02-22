@@ -23,6 +23,7 @@ namespace fc::vm::actor::builtin::miner {
   using primitives::RleBitset;
   using primitives::address::Address;
   using proofs::sector::OnChainPoStVerifyInfo;
+  using proofs::sector::RegisteredProof;
   using proofs::sector::SealProof;
 
   using PeerId = std::string;
@@ -33,6 +34,7 @@ namespace fc::vm::actor::builtin::miner {
   };
 
   struct SectorPreCommitInfo {
+    RegisteredProof registered_proof;
     uint64_t sector;
     CID sealed_cid;
     ChainEpoch seal_epoch;
@@ -111,6 +113,8 @@ namespace fc::vm::actor::builtin::miner {
   };
 
   using SubmitWindowedPoStParams = OnChainPoStVerifyInfo;
+
+  using PreCommitSectorParams = SectorPreCommitInfo;
 
   struct ProveCommitSectorParams {
     uint64_t sector;

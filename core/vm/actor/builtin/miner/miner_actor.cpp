@@ -5,6 +5,7 @@
 
 #include "vm/actor/builtin/miner/miner_actor.hpp"
 
+#include "primitives/chain_epoch/chain_epoch_codec.hpp"
 #include "storage/amt/amt.hpp"
 #include "storage/hamt/hamt.hpp"
 #include "vm/actor/builtin/account/account_actor.hpp"
@@ -15,6 +16,7 @@
 namespace fc::vm::actor::builtin::miner {
   using primitives::kChainEpochUndefined;
   using primitives::address::Protocol;
+  using primitives::chain_epoch::uvarintKey;
   using proofs::sector::PoStCandidate;
   using proofs::sector::SectorInfo;
   using runtime::DomainSeparationTag;
@@ -23,6 +25,9 @@ namespace fc::vm::actor::builtin::miner {
   using storage_power::EnrollCronEventParams;
   using storage_power::kEnrollCronEventMethodNumber;
   using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
+
+  // TODO: fill
+  static std::map<RegisteredProof, ChainEpoch> max_seal_duration;
 
   outcome::result<Address> resolveOwnerAddress(Runtime &runtime,
                                                const Address &address) {
@@ -129,6 +134,19 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  outcome::result<void> confirmPaymentAndRefundChange(Runtime &runtime,
+                                                      BigInt expected) {
+    BigInt extra = expected - runtime.getValueReceived();
+    if (extra < 0) {
+      return VMExitCode::MINER_ACTOR_INSUFFICIENT_FUNDS;
+    }
+    if (extra > 0) {
+      OUTCOME_TRY(runtime.send(
+          runtime.getImmediateCaller(), kSendMethodNumber, {}, extra));
+    }
+    return outcome::success();
+  }
+
   ACTOR_METHOD(constructor) {
     if (runtime.getImmediateCaller() != kInitAddress) {
       return VMExitCode::MINER_ACTOR_WRONG_CALLER;
@@ -229,6 +247,52 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(preCommitSector) {
+    OUTCOME_TRY(params2, decodeActorParams<PreCommitSectorParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    if (runtime.getImmediateCaller() != state.info.worker) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+
+    OUTCOME_TRY(already_commited,
+                Amt(runtime.getIpfsDatastore(), state.sectors)
+                    .contains(params2.sector));
+    if (already_commited) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+
+    auto deposit = precommitDeposit(
+        state.info.sector_size, params2.expiration - runtime.getCurrentEpoch());
+    OUTCOME_TRY(confirmPaymentAndRefundChange(runtime, deposit));
+
+    Hamt hamt_precommitted_sectors{runtime.getIpfsDatastore(),
+                                   state.precommitted_sectors};
+    OUTCOME_TRY(hamt_precommitted_sectors.setCbor(uvarintKey(params2.sector),
+                                                  SectorPreCommitOnChainInfo{
+                                                      params2,
+                                                      deposit,
+                                                      runtime.getCurrentEpoch(),
+                                                  }));
+    OUTCOME_TRY(new_precommitted_sectors, hamt_precommitted_sectors.flush());
+    state.precommitted_sectors = new_precommitted_sectors;
+    OUTCOME_TRY(runtime.commitState(state));
+
+    if (params2.expiration <= runtime.getCurrentEpoch()) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+
+    auto duration = max_seal_duration.find(params2.registered_proof);
+    if (duration == max_seal_duration.end()) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+    OUTCOME_TRY(enrollCronEvent(
+        runtime,
+        runtime.getCurrentEpoch() + duration->second + 1,
+        {CronEventType::PreCommitExpiry, RleBitset{params2.sector}}));
+
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
@@ -236,5 +300,6 @@ namespace fc::vm::actor::builtin::miner {
       {kChangePeerIdMethodNumber, ActorMethod(changePeerId)},
       {kSubmitWindowedPoStMethodNumber, ActorMethod(submitWindowedPoSt)},
       {kOnDeleteMinerMethodNumber, ActorMethod(onDeleteMiner)},
+      {kPreCommitSectorMethodNumber, ActorMethod(preCommitSector)},
   };
 }  // namespace fc::vm::actor::builtin::miner

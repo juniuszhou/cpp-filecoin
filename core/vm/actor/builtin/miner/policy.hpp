@@ -24,6 +24,10 @@ namespace fc::vm::actor::builtin::miner {
   constexpr auto kWorkerKeyChangeDelay{2 * kElectionLookback};
 
   constexpr EpochDuration kProvingPeriod{300};
+
+  inline BigInt precommitDeposit(uint64_t sector_size, ChainEpoch duration) {
+    return 0;
+  }
 }  // namespace fc::vm::actor::builtin::miner
 
 #endif  // CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MINER_POLICY_HPP
