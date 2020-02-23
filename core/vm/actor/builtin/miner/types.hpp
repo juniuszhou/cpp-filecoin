@@ -21,6 +21,7 @@ namespace fc::vm::actor::builtin::miner {
   using primitives::ChainEpoch;
   using primitives::EpochDuration;
   using primitives::RleBitset;
+  using primitives::SectorNumber;
   using primitives::address::Address;
   using proofs::sector::OnChainPoStVerifyInfo;
   using proofs::sector::RegisteredProof;

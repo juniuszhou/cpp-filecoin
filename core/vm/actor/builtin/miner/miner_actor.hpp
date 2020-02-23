@@ -21,6 +21,7 @@ namespace fc::vm::actor::builtin::miner {
   constexpr MethodNumber kPreCommitSectorMethodNumber{7};
   constexpr MethodNumber kProveCommitSectorMethodNumber{8};
   constexpr MethodNumber kExtendSectorExpirationMethodNumber{9};
+  constexpr MethodNumber kTerminateSectorsMethodNumber{10};
 
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
@@ -41,6 +42,8 @@ namespace fc::vm::actor::builtin::miner {
   ACTOR_METHOD(proveCommitSector);
 
   ACTOR_METHOD(extendSectorExpiration);
+
+  ACTOR_METHOD(terminateSectors);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner

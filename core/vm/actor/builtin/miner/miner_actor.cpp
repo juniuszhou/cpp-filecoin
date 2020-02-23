@@ -17,8 +17,11 @@
 namespace fc::vm::actor::builtin::miner {
   using market::ComputeDataCommitmentParams;
   using market::kComputeDataCommitmentMethodNumber;
+  using market::kOnMinerSectorsTerminateMethodNumber;
   using market::kVerifyDealsOnSectorProveCommitMethodNumber;
+  using market::OnMinerSectorsTerminateParams;
   using market::VerifyDealsOnSectorProveCommitParams;
+  using primitives::DealId;
   using primitives::DealWeight;
   using primitives::kChainEpochUndefined;
   using primitives::SectorSize;
@@ -36,9 +39,14 @@ namespace fc::vm::actor::builtin::miner {
   using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
   using storage_power::kOnSectorModifyWeightDescMethodNumber;
   using storage_power::kOnSectorProveCommitMethodNumber;
+  using storage_power::kOnSectorTemporaryFaultEffectiveEndMethodNumber;
+  using storage_power::kOnSectorTerminateMethodNumber;
   using storage_power::OnSectorModifyWeightDescParams;
   using storage_power::OnSectorProveCommitParams;
+  using storage_power::OnSectorTemporaryFaultEffectiveEndParams;
+  using storage_power::OnSectorTerminateParams;
   using storage_power::SectorStorageWeightDesc;
+  using storage_power::SectorTermination;
 
   outcome::result<Address> resolveOwnerAddress(Runtime &runtime,
                                                const Address &address) {
@@ -209,6 +217,81 @@ namespace fc::vm::actor::builtin::miner {
         .duration = sector.info.expiration - sector.activation_epoch,
         .deal_weight = sector.deal_weight,
     };
+  }
+
+  outcome::result<void> requestTerminatePower(
+      Runtime &runtime,
+      SectorTermination type,
+      const std::vector<SectorStorageWeightDesc> &weights,
+      TokenAmount pledge) {
+    OUTCOME_TRY(runtime.sendP(kStoragePowerAddress,
+                              kOnSectorTerminateMethodNumber,
+                              OnSectorTerminateParams{
+                                  .termination_type = type,
+                                  .weights = weights,
+                                  .pledge = pledge,
+                              },
+                              0));
+    return outcome::success();
+  }
+
+  outcome::result<void> requestTerminateDeals(
+      Runtime &runtime, const std::vector<DealId> &deals) {
+    OUTCOME_TRY(runtime.sendP(kStorageMarketAddress,
+                              kOnMinerSectorsTerminateMethodNumber,
+                              OnMinerSectorsTerminateParams{
+                                  .deals = deals,
+                              },
+                              0));
+    return outcome::success();
+  }
+
+  outcome::result<void> requestEndFaults(
+      Runtime &runtime,
+      const std::vector<SectorStorageWeightDesc> &weights,
+      TokenAmount pledge) {
+    OUTCOME_TRY(runtime.sendP(kStoragePowerAddress,
+                              kOnSectorTemporaryFaultEffectiveEndMethodNumber,
+                              OnSectorTemporaryFaultEffectiveEndParams{
+                                  .weights = weights,
+                                  .pledge = pledge,
+                              },
+                              0));
+    return outcome::success();
+  }
+
+  outcome::result<void> terminateSectorsInternal(Runtime &runtime,
+                                                 MinerActorState &state,
+                                                 const RleBitset &sectors,
+                                                 SectorTermination type) {
+    Amt amt_sectors{runtime.getIpfsDatastore(), state.sectors};
+    std::vector<DealId> deals;
+    std::vector<SectorStorageWeightDesc> all_weights, fault_weights;
+    TokenAmount all_pledges, fault_pledges;
+    for (auto sector_num : sectors) {
+      OUTCOME_TRY(sector, amt_sectors.getCbor<SectorOnChainInfo>(sector_num));
+      deals.insert(deals.end(),
+                   sector.info.deal_ids.begin(),
+                   sector.info.deal_ids.end());
+      all_pledges += sector.pledge_requirement;
+      auto weight = asStorageWeightDesc(state.info.sector_size, sector);
+      all_weights.push_back(weight);
+      if (state.fault_set.find(sector_num) != state.fault_set.end()) {
+        fault_weights.push_back(weight);
+        fault_pledges += sector.pledge_requirement;
+      }
+      OUTCOME_TRY(amt_sectors.remove(sector_num));
+    }
+    if (!inChallengeWindow(state, runtime)) {
+      state.proving_set = state.sectors;
+    }
+    OUTCOME_TRY(runtime.commitState(state));
+    if (!fault_weights.empty()) {
+      OUTCOME_TRY(requestEndFaults(runtime, fault_weights, fault_pledges));
+    }
+    OUTCOME_TRY(requestTerminateDeals(runtime, deals));
+    OUTCOME_TRY(requestTerminatePower(runtime, type, all_weights, all_pledges));
+    return outcome::success();
   }
 
   ACTOR_METHOD(constructor) {
@@ -498,6 +581,17 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(terminateSectors) {
+    OUTCOME_TRY(params2, decodeActorParams<TerminateSectorsParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    if (runtime.getImmediateCaller() != state.info.worker) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    OUTCOME_TRY(terminateSectorsInternal(
+        runtime, state, *params2.sectors, SectorTermination::Manual));
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
@@ -509,5 +603,6 @@ namespace fc::vm::actor::builtin::miner {
       {kProveCommitSectorMethodNumber, ActorMethod(proveCommitSector)},
       {kExtendSectorExpirationMethodNumber,
        ActorMethod(extendSectorExpiration)},
+      {kTerminateSectorsMethodNumber, ActorMethod(terminateSectors)},
   };
 }  // namespace fc::vm::actor::builtin::miner
