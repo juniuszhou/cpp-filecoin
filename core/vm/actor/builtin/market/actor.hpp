@@ -13,15 +13,24 @@
 namespace fc::vm::actor::builtin::market {
   using primitives::ChainEpoch;
   using primitives::DealId;
+  using primitives::SectorSize;
 
   constexpr MethodNumber kVerifyDealsOnSectorProveCommitMethodNumber{6};
+  constexpr MethodNumber kComputeDataCommitmentMethodNumber{8};
 
   struct VerifyDealsOnSectorProveCommitParams {
     std::vector<DealId> deals;
     ChainEpoch sector_expiry;
   };
 
+  struct ComputeDataCommitmentParams {
+    std::vector<DealId> deals;
+    SectorSize sector_size;
+  };
+
   CBOR_TUPLE(VerifyDealsOnSectorProveCommitParams, deals, sector_expiry)
+
+  CBOR_TUPLE(ComputeDataCommitmentParams, deals, sector_size)
 }  // namespace fc::vm::actor::builtin::market
 
 #endif  // CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MARKET_ACTOR_HPP
