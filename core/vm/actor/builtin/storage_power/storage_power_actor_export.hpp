@@ -65,6 +65,11 @@ namespace fc::vm::actor::builtin::storage_power {
     TokenAmount pledge;
   };
 
+  struct OnSectorTemporaryFaultEffectiveBeginParams {
+    std::vector<SectorStorageWeightDesc> weights;
+    TokenAmount pledge;
+  };
+
   struct OnSectorTemporaryFaultEffectiveEndParams {
     std::vector<SectorStorageWeightDesc> weights;
     TokenAmount pledge;
@@ -74,6 +79,10 @@ namespace fc::vm::actor::builtin::storage_power {
     SectorStorageWeightDesc prev_weight;
     TokenAmount prev_pledge;
     SectorStorageWeightDesc new_weight;
+  };
+
+  struct OnMinerWindowedPoStFailureParams {
+    uint64_t num_consecutive_failures;
   };
 
   struct EnrollCronEventParams {
@@ -103,12 +112,16 @@ namespace fc::vm::actor::builtin::storage_power {
 
   CBOR_TUPLE(OnSectorTerminateParams, termination_type, weights, pledge)
 
+  CBOR_TUPLE(OnSectorTemporaryFaultEffectiveBeginParams, weights, pledge)
+
   CBOR_TUPLE(OnSectorTemporaryFaultEffectiveEndParams, weights, pledge)
 
   CBOR_TUPLE(OnSectorModifyWeightDescParams,
              prev_weight,
              prev_pledge,
              new_weight)
+
+  CBOR_TUPLE(OnMinerWindowedPoStFailureParams, num_consecutive_failures)
 
   CBOR_TUPLE(EnrollCronEventParams, event_epoch, payload);
 
