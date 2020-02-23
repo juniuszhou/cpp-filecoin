@@ -270,8 +270,8 @@ namespace fc::vm::actor::builtin::miner {
                                                       deposit,
                                                       runtime.getCurrentEpoch(),
                                                   }));
-    OUTCOME_TRY(new_precommitted_sectors, hamt_precommitted_sectors.flush());
-    state.precommitted_sectors = new_precommitted_sectors;
+    OUTCOME_TRY(hamt_precommitted_sectors.flush());
+    state.precommitted_sectors = hamt_precommitted_sectors.cid();
     OUTCOME_TRY(runtime.commitState(state));
 
     if (params2.expiration <= runtime.getCurrentEpoch()) {
