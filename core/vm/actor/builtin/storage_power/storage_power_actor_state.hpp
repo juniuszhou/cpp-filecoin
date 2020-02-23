@@ -277,8 +277,6 @@ namespace fc::vm::actor::builtin::storage_power {
 
   CBOR_TUPLE(Claim, power, pledge);
 
-  CBOR_TUPLE(SectorStorageWeightDesc, sector_size, duration, deal_weight)
-
   CBOR_TUPLE(CronEvent, miner_address, callback_payload);
 
   CBOR_TUPLE(StoragePowerActorState,

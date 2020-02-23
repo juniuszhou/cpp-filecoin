@@ -8,6 +8,7 @@
 
 #include <cstdint>
 
+#include "codec/cbor/streams_annotation.hpp"
 #include "primitives/big_int.hpp"
 #include "primitives/chain_epoch/chain_epoch.hpp"
 
@@ -27,6 +28,8 @@ namespace fc::primitives {
     EpochDuration duration;
     DealWeight deal_weight;
   };
+
+  CBOR_TUPLE(SectorStorageWeightDesc, sector_size, duration, deal_weight)
 }  // namespace fc::primitives
 
 #endif  // CPP_FILECOIN_CORE_PRIMITIVES_TYPES_HPP
