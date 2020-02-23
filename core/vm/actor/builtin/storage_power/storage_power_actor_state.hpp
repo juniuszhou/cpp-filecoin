@@ -28,6 +28,7 @@ namespace fc::vm::actor::builtin::storage_power {
   using primitives::DealWeight;
   using primitives::EpochDuration;
   using primitives::SectorSize;
+  using primitives::SectorStorageWeightDesc;
   using primitives::TokenAmount;
   using primitives::address::Address;
   using storage::hamt::Hamt;
@@ -51,12 +52,6 @@ namespace fc::vm::actor::builtin::storage_power {
     inline bool operator==(const Claim &other) const {
       return power == other.power && pledge == other.pledge;
     }
-  };
-
-  struct SectorStorageWeightDesc {
-    SectorSize sector_size;
-    EpochDuration duration;
-    DealWeight deal_weight;
   };
 
   struct CronEvent {

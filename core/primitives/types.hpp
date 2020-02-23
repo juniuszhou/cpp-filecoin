@@ -21,6 +21,12 @@ namespace fc::primitives {
   using DealWeight = BigInt;
 
   using DealId = uint64_t;
+
+  struct SectorStorageWeightDesc {
+    SectorSize sector_size;
+    EpochDuration duration;
+    DealWeight deal_weight;
+  };
 }  // namespace fc::primitives
 
 #endif  // CPP_FILECOIN_CORE_PRIMITIVES_TYPES_HPP
