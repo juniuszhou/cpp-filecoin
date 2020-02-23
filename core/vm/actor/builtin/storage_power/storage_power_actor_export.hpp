@@ -55,6 +55,10 @@ namespace fc::vm::actor::builtin::storage_power {
     TokenAmount requested;
   };
 
+  struct OnSectorProveCommitParams {
+    SectorStorageWeightDesc weight;
+  };
+
   struct EnrollCronEventParams {
     ChainEpoch event_epoch;
     Buffer payload;
@@ -77,6 +81,8 @@ namespace fc::vm::actor::builtin::storage_power {
   CBOR_TUPLE(AddBalanceParameters, miner);
 
   CBOR_TUPLE(WithdrawBalanceParameters, miner, requested);
+
+  CBOR_TUPLE(OnSectorProveCommitParams, weight)
 
   CBOR_TUPLE(EnrollCronEventParams, event_epoch, payload);
 
