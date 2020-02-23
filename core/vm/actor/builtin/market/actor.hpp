@@ -16,11 +16,16 @@ namespace fc::vm::actor::builtin::market {
   using primitives::SectorSize;
 
   constexpr MethodNumber kVerifyDealsOnSectorProveCommitMethodNumber{6};
+  constexpr MethodNumber kOnMinerSectorsTerminateMethodNumber{7};
   constexpr MethodNumber kComputeDataCommitmentMethodNumber{8};
 
   struct VerifyDealsOnSectorProveCommitParams {
     std::vector<DealId> deals;
     ChainEpoch sector_expiry;
+  };
+
+  struct OnMinerSectorsTerminateParams {
+    std::vector<DealId> deals;
   };
 
   struct ComputeDataCommitmentParams {
@@ -29,6 +34,8 @@ namespace fc::vm::actor::builtin::market {
   };
 
   CBOR_TUPLE(VerifyDealsOnSectorProveCommitParams, deals, sector_expiry)
+
+  CBOR_TUPLE(OnMinerSectorsTerminateParams, deals)
 
   CBOR_TUPLE(ComputeDataCommitmentParams, deals, sector_size)
 }  // namespace fc::vm::actor::builtin::market
