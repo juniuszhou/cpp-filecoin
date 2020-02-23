@@ -19,6 +19,7 @@ namespace fc::vm::actor::builtin::miner {
   constexpr MethodNumber kSubmitWindowedPoStMethodNumber{5};
   constexpr MethodNumber kOnDeleteMinerMethodNumber{6};
   constexpr MethodNumber kPreCommitSectorMethodNumber{7};
+  constexpr MethodNumber kProveCommitSectorMethodNumber{8};
 
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
@@ -35,6 +36,8 @@ namespace fc::vm::actor::builtin::miner {
   ACTOR_METHOD(onDeleteMiner);
 
   ACTOR_METHOD(preCommitSector);
+
+  ACTOR_METHOD(proveCommitSector);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner

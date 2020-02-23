@@ -9,14 +9,23 @@
 #include "storage/amt/amt.hpp"
 #include "storage/hamt/hamt.hpp"
 #include "vm/actor/builtin/account/account_actor.hpp"
+#include "vm/actor/builtin/market/actor.hpp"
 #include "vm/actor/builtin/miner/policy.hpp"
 #include "vm/actor/builtin/storage_power/storage_power_actor_export.hpp"
 #include "vm/exit_code/exit_code.hpp"
 
 namespace fc::vm::actor::builtin::miner {
+  using market::ComputeDataCommitmentParams;
+  using market::kComputeDataCommitmentMethodNumber;
+  using market::kVerifyDealsOnSectorProveCommitMethodNumber;
+  using market::VerifyDealsOnSectorProveCommitParams;
+  using primitives::DealWeight;
   using primitives::kChainEpochUndefined;
+  using primitives::SectorSize;
+  using primitives::TokenAmount;
   using primitives::address::Protocol;
   using primitives::chain_epoch::uvarintKey;
+  using proofs::sector::OnChainSealVerifyInfo;
   using proofs::sector::PoStCandidate;
   using proofs::sector::SectorInfo;
   using runtime::DomainSeparationTag;
@@ -25,6 +34,8 @@ namespace fc::vm::actor::builtin::miner {
   using storage_power::EnrollCronEventParams;
   using storage_power::kEnrollCronEventMethodNumber;
   using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
+  using storage_power::kOnSectorProveCommitMethodNumber;
+  using storage_power::OnSectorProveCommitParams;
 
   outcome::result<Address> resolveOwnerAddress(Runtime &runtime,
                                                const Address &address) {
@@ -141,9 +152,51 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  bool inChallengeWindow(const MinerActorState &state, Runtime &runtime) {
+    return runtime.getCurrentEpoch() > state.post_state.proving_period_start;
+  }
+
   outcome::result<EpochDuration> maxSealDuration(RegisteredProof type) {
     // TODO: seal types
     return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+  }
+
+  outcome::result<void> verifySeal(Runtime &runtime,
+                                   SectorSize sector_size,
+                                   const OnChainSealVerifyInfo &info) {
+    OUTCOME_TRY(duration, maxSealDuration(info.registered_proof));
+    if (info.seal_rand_epoch
+        < runtime.getCurrentEpoch() - kChainFinalityish - duration) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+
+    OUTCOME_TRY(comm_d,
+                runtime.sendPR<CID>(kStorageMarketAddress,
+                                    kComputeDataCommitmentMethodNumber,
+                                    ComputeDataCommitmentParams{
+                                        .sector_size = sector_size,
+                                        .deals = info.deals,
+                                    },
+                                    0));
+
+    // TODO: ensure message.to is id-address
+    OUTCOME_TRY(runtime.verifySeal(
+        sector_size,
+        {
+            .sector =
+                {
+                    .miner = runtime.getMessage().get().to.getId(),
+                    .sector = info.sector,
+                },
+            .info = info,
+            .randomness = runtime.getRandomness(
+                DomainSeparationTag::SealRandomness, info.seal_rand_epoch),
+            .interactive_randomness = runtime.getRandomness(
+                DomainSeparationTag::InteractiveSealChallengeSeed,
+                info.interactive_epoch),
+            .unsealed_cid = comm_d,
+        }));
+    return outcome::success();
   }
 
   ACTOR_METHOD(constructor) {
@@ -289,6 +342,110 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(proveCommitSector) {
+    OUTCOME_TRY(params2, decodeActorParams<ProveCommitSectorParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    if (runtime.getImmediateCaller() != state.info.worker) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    auto ipld = runtime.getIpfsDatastore();
+    auto sector = params2.sector;
+
+    OUTCOME_TRY(precommit,
+                Hamt(ipld, state.precommitted_sectors)
+                    .getCbor<SectorPreCommitOnChainInfo>(uvarintKey(sector)));
+
+    OUTCOME_TRY(verifySeal(runtime,
+                           state.info.sector_size,
+                           {
+                               .sealed_cid = precommit.info.sealed_cid,
+                               .interactive_epoch = precommit.precommit_epoch
+                                                    + kPreCommitChallengeDelay,
+                               .registered_proof = {},
+                               .proof = params2.proof,
+                               .deals = precommit.info.deal_ids,
+                               .sector = precommit.info.sector,
+                               .seal_rand_epoch = precommit.info.seal_epoch,
+                           }));
+
+    OUTCOME_TRY(deal_weight,
+                runtime.sendPR<DealWeight>(
+                    kStorageMarketAddress,
+                    kVerifyDealsOnSectorProveCommitMethodNumber,
+                    VerifyDealsOnSectorProveCommitParams{
+                        .deals = precommit.info.deal_ids,
+                        .sector_expiry = precommit.info.expiration,
+                    },
+                    0));
+
+    OUTCOME_TRY(pledge,
+                runtime.sendPR<TokenAmount>(
+                    kStoragePowerAddress,
+                    kOnSectorProveCommitMethodNumber,
+                    OnSectorProveCommitParams{
+                        .weight =
+                            {
+                                .sector_size = state.info.sector_size,
+                                .duration = precommit.info.expiration
+                                            - runtime.getCurrentEpoch(),
+                                .deal_weight = deal_weight,
+                            }},
+                    0));
+
+    Amt amt_sectors{ipld, state.sectors};
+    OUTCOME_TRY(sectors, amt_sectors.count());
+    OUTCOME_TRY(
+        amt_sectors.setCbor(precommit.info.sector,
+                            SectorOnChainInfo{
+                                .info = precommit.info,
+                                .activation_epoch = runtime.getCurrentEpoch(),
+                                .deal_weight = deal_weight,
+                                .pledge_requirement = pledge,
+                                .declared_fault_epoch = {},
+                                .declared_fault_duration = {},
+                            }));
+    OUTCOME_TRY(amt_sectors.flush());
+    state.sectors = amt_sectors.cid();
+
+    Hamt hamt_precommitted_sectors{ipld, state.precommitted_sectors};
+    OUTCOME_TRY(hamt_precommitted_sectors.remove(uvarintKey(sector)));
+    OUTCOME_TRY(hamt_precommitted_sectors.flush());
+    state.precommitted_sectors = hamt_precommitted_sectors.cid();
+
+    if (sectors == 1) {
+      state.post_state.proving_period_start =
+          runtime.getCurrentEpoch() + kProvingPeriod;
+    }
+
+    if (!inChallengeWindow(state, runtime)) {
+      state.proving_set = state.sectors;
+    }
+
+    OUTCOME_TRY(runtime.commitState(state));
+
+    OUTCOME_TRY(enrollCronEvent(runtime,
+                                precommit.info.expiration,
+                                {
+                                    .event_type = CronEventType::SectorExpiry,
+                                    .sectors = RleBitset{sector},
+                                }));
+
+    if (sectors == 1) {
+      OUTCOME_TRY(enrollCronEvent(
+          runtime,
+          state.post_state.proving_period_start
+              + kWindowedPostChallengeDuration,
+          {
+              .event_type = CronEventType::WindowedPoStExpiration,
+              .sectors = boost::none,
+          }));
+    }
+
+    OUTCOME_TRY(
+        runtime.sendFunds(state.info.worker, precommit.precommit_deposit));
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
@@ -297,5 +454,6 @@ namespace fc::vm::actor::builtin::miner {
       {kSubmitWindowedPoStMethodNumber, ActorMethod(submitWindowedPoSt)},
       {kOnDeleteMinerMethodNumber, ActorMethod(onDeleteMiner)},
       {kPreCommitSectorMethodNumber, ActorMethod(preCommitSector)},
+      {kProveCommitSectorMethodNumber, ActorMethod(proveCommitSector)},
   };
 }  // namespace fc::vm::actor::builtin::miner

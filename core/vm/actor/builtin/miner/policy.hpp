@@ -25,6 +25,10 @@ namespace fc::vm::actor::builtin::miner {
 
   constexpr EpochDuration kProvingPeriod{300};
 
+  constexpr EpochDuration kPreCommitChallengeDelay{10};
+
+  constexpr EpochDuration kChainFinalityish{500};
+
   inline BigInt precommitDeposit(uint64_t sector_size, ChainEpoch duration) {
     return 0;
   }
