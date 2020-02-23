@@ -91,6 +91,7 @@ namespace fc::vm::actor::builtin::miner {
   struct CronEventPayload {
     CronEventType event_type;
     boost::optional<RleBitset> sectors;
+    RegisteredProof registered_proof{};
   };
 
   struct ConstructorParams {
@@ -170,7 +171,7 @@ namespace fc::vm::actor::builtin::miner {
              info,
              post_state)
 
-  CBOR_TUPLE(CronEventPayload, event_type, sectors)
+  CBOR_TUPLE(CronEventPayload, event_type, sectors, registered_proof)
 
   CBOR_TUPLE(ConstructorParams, owner, worker, sector_size, peer_id)
 

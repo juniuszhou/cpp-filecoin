@@ -23,6 +23,7 @@ namespace fc::vm::actor::builtin::miner {
   constexpr MethodNumber kExtendSectorExpirationMethodNumber{9};
   constexpr MethodNumber kTerminateSectorsMethodNumber{10};
   constexpr MethodNumber kDeclareTemporaryFaultsMethodNumber{11};
+  constexpr MethodNumber kOnDeferredCronEventMethodNumber{11};
 
   constexpr MethodNumber kSubmitElectionPoStMethodNumber{20};
 
@@ -47,6 +48,8 @@ namespace fc::vm::actor::builtin::miner {
   ACTOR_METHOD(terminateSectors);
 
   ACTOR_METHOD(declareTemporaryFaults);
+
+  ACTOR_METHOD(onDeferredCronEvent);
 
   extern const ActorExports exports;
 }  // namespace fc::vm::actor::builtin::miner

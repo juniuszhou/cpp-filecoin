@@ -36,13 +36,17 @@ namespace fc::vm::actor::builtin::miner {
   using storage::hamt::Hamt;
   using storage_power::EnrollCronEventParams;
   using storage_power::kEnrollCronEventMethodNumber;
+  using storage_power::kOnMinerSurprisePoStFailureMethodNumber;
   using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
   using storage_power::kOnSectorModifyWeightDescMethodNumber;
   using storage_power::kOnSectorProveCommitMethodNumber;
+  using storage_power::kOnSectorTemporaryFaultEffectiveBeginMethodNumber;
   using storage_power::kOnSectorTemporaryFaultEffectiveEndMethodNumber;
   using storage_power::kOnSectorTerminateMethodNumber;
+  using storage_power::OnMinerWindowedPoStFailureParams;
   using storage_power::OnSectorModifyWeightDescParams;
   using storage_power::OnSectorProveCommitParams;
+  using storage_power::OnSectorTemporaryFaultEffectiveBeginParams;
   using storage_power::OnSectorTemporaryFaultEffectiveEndParams;
   using storage_power::OnSectorTerminateParams;
   using storage_power::SectorStorageWeightDesc;
@@ -246,6 +250,20 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  outcome::result<void> requestBeginFaults(
+      Runtime &runtime,
+      const std::vector<SectorStorageWeightDesc> &weights,
+      TokenAmount pledge) {
+    OUTCOME_TRY(runtime.sendP(kStoragePowerAddress,
+                              kOnSectorTemporaryFaultEffectiveBeginMethodNumber,
+                              OnSectorTemporaryFaultEffectiveBeginParams{
+                                  .weights = weights,
+                                  .pledge = pledge,
+                              },
+                              0));
+    return outcome::success();
+  }
+
   outcome::result<void> requestEndFaults(
       Runtime &runtime,
       const std::vector<SectorStorageWeightDesc> &weights,
@@ -285,6 +303,8 @@ namespace fc::vm::actor::builtin::miner {
     if (!inChallengeWindow(state, runtime)) {
       state.proving_set = state.sectors;
     }
+    OUTCOME_TRY(amt_sectors.flush());
+    state.sectors = amt_sectors.cid();
     OUTCOME_TRY(runtime.commitState(state));
     if (!fault_weights.empty()) {
       OUTCOME_TRY(requestEndFaults(runtime, fault_weights, fault_pledges));
@@ -292,6 +312,156 @@ namespace fc::vm::actor::builtin::miner {
     OUTCOME_TRY(requestTerminateDeals(runtime, deals));
     OUTCOME_TRY(requestTerminatePower(runtime, type, all_weights, all_pledges));
     return outcome::success();
+  }
+
+  outcome::result<void> checkTemporaryFaultEvents(
+      Runtime &runtime,
+      MinerActorState &state,
+      const boost::optional<RleBitset> &sectors) {
+    if (!sectors) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+    Amt amt_sectors{runtime.getIpfsDatastore(), state.sectors};
+    std::vector<SectorStorageWeightDesc> begin_weights, end_weights;
+    TokenAmount begin_pledges, end_pledges;
+    for (auto sector_num : *sectors) {
+      OUTCOME_TRY(found, amt_sectors.contains(sector_num));
+      if (!found) {
+        continue;
+      }
+      OUTCOME_TRY(sector, amt_sectors.getCbor<SectorOnChainInfo>(sector_num));
+      if (state.fault_set.find(sector_num) == state.fault_set.end()) {
+        if (runtime.getCurrentEpoch() >= sector.declared_fault_epoch) {
+          begin_pledges += sector.pledge_requirement;
+          begin_weights.push_back(
+              asStorageWeightDesc(state.info.sector_size, sector));
+          state.fault_set.insert(sector_num);
+        }
+      } else {
+        if (runtime.getCurrentEpoch()
+            >= sector.declared_fault_epoch + sector.declared_fault_duration) {
+          sector.declared_fault_epoch = kChainEpochUndefined;
+          sector.declared_fault_duration = kChainEpochUndefined;
+          end_pledges += sector.pledge_requirement;
+          end_weights.push_back(
+              asStorageWeightDesc(state.info.sector_size, sector));
+          state.fault_set.erase(sector_num);
+          OUTCOME_TRY(amt_sectors.setCbor(sector_num, sector));
+        }
+      }
+    }
+    OUTCOME_TRY(amt_sectors.flush());
+    state.sectors = amt_sectors.cid();
+    OUTCOME_TRY(runtime.commitState(state));
+    if (!begin_weights.empty()) {
+      OUTCOME_TRY(requestBeginFaults(runtime, begin_weights, begin_pledges));
+    }
+    if (!end_weights.empty()) {
+      OUTCOME_TRY(requestEndFaults(runtime, end_weights, end_pledges));
+    }
+    return outcome::success();
+  }
+
+  outcome::result<void> checkPrecommitExpiry(
+      Runtime &runtime,
+      MinerActorState &state,
+      const boost::optional<RleBitset> &sectors,
+      RegisteredProof registered_proof) {
+    if (!sectors) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+    OUTCOME_TRY(duration, maxSealDuration(registered_proof));
+    Hamt hamt_precommit{runtime.getIpfsDatastore(), state.precommitted_sectors};
+    TokenAmount to_burn;
+    for (auto sector_num : *sectors) {
+      auto key = uvarintKey(sector_num);
+      OUTCOME_TRY(found, hamt_precommit.contains(key));
+      if (!found) {
+        continue;
+      }
+      OUTCOME_TRY(precommit,
+                  hamt_precommit.getCbor<SectorPreCommitOnChainInfo>(key));
+      if (runtime.getCurrentEpoch() - precommit.precommit_epoch <= duration) {
+        continue;
+      }
+      OUTCOME_TRY(hamt_precommit.remove(key));
+      to_burn += precommit.precommit_deposit;
+    }
+    OUTCOME_TRY(hamt_precommit.flush());
+    state.precommitted_sectors = hamt_precommit.cid();
+    OUTCOME_TRY(runtime.commitState(state));
+    OUTCOME_TRY(runtime.sendFunds(kBurntFundsActorAddress, to_burn));
+    return outcome::success();
+  }
+
+  outcome::result<void> checkSectorExpiry(
+      Runtime &runtime,
+      MinerActorState &state,
+      const boost::optional<RleBitset> &sectors) {
+    if (!sectors) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+    Amt amt_sectors{runtime.getIpfsDatastore(), state.sectors};
+    RleBitset to_terminate;
+    for (auto sector_num : *sectors) {
+      OUTCOME_TRY(found, amt_sectors.contains(sector_num));
+      if (!found) {
+        continue;
+      }
+      OUTCOME_TRY(sector, amt_sectors.getCbor<SectorOnChainInfo>(sector_num));
+      if (runtime.getCurrentEpoch() >= sector.info.expiration) {
+        to_terminate.insert(sector_num);
+      }
+    }
+    return terminateSectorsInternal(
+        runtime, state, to_terminate, SectorTermination::Expired);
+  }
+
+  outcome::result<void> checkPoStProvingPeriodExpiration(
+      Runtime &runtime, MinerActorState &state) {
+    if (runtime.getCurrentEpoch() < state.post_state.proving_period_start
+                                        + kWindowedPostChallengeDuration) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_STATE;
+    }
+    ++state.post_state.num_consecutive_failures;
+    state.post_state.proving_period_start += kProvingPeriod;
+    OUTCOME_TRY(runtime.commitState(state));
+    if (state.post_state.num_consecutive_failures > kWindowedPostFailureLimit) {
+      std::vector<DealId> deals;
+      OUTCOME_TRY(
+          Amt(runtime.getIpfsDatastore(), state.sectors)
+              .visit([&](auto, auto &sector_raw) -> outcome::result<void> {
+                OUTCOME_TRY(sector,
+                            codec::cbor::decode<SectorOnChainInfo>(sector_raw));
+                deals.insert(deals.end(),
+                             sector.info.deal_ids.begin(),
+                             sector.info.deal_ids.end());
+                return outcome::success();
+              }));
+      OUTCOME_TRY(requestTerminateDeals(runtime, deals));
+    }
+    OUTCOME_TRY(runtime.sendP(kStoragePowerAddress,
+                              kOnMinerSurprisePoStFailureMethodNumber,
+                              OnMinerWindowedPoStFailureParams{
+                                  .num_consecutive_failures =
+                                      state.post_state.num_consecutive_failures,
+                              },
+                              0));
+    return outcome::success();
+  }
+
+  outcome::result<void> commitWorkerKeyChange(Runtime &runtime,
+                                              MinerActorState &state) {
+    if (!state.info.pending_worker_key) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_STATE;
+    }
+    if (state.info.pending_worker_key->effective_at
+        > runtime.getCurrentEpoch()) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_STATE;
+    }
+    state.info.worker = state.info.pending_worker_key->new_worker;
+    state.info.pending_worker_key = boost::none;
+    return runtime.commitState(state);
   }
 
   ACTOR_METHOD(constructor) {
@@ -429,10 +599,11 @@ namespace fc::vm::actor::builtin::miner {
     }
 
     OUTCOME_TRY(duration, maxSealDuration(params2.registered_proof));
-    OUTCOME_TRY(enrollCronEvent(
-        runtime,
-        runtime.getCurrentEpoch() + duration + 1,
-        {CronEventType::PreCommitExpiry, RleBitset{params2.sector}}));
+    OUTCOME_TRY(enrollCronEvent(runtime,
+                                runtime.getCurrentEpoch() + duration + 1,
+                                {CronEventType::PreCommitExpiry,
+                                 RleBitset{params2.sector},
+                                 params2.registered_proof}));
 
     return outcome::success();
   }
@@ -635,6 +806,41 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(onDeferredCronEvent) {
+    if (runtime.getImmediateCaller() != kStoragePowerAddress) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    OUTCOME_TRY(params2, decodeActorParams<OnDeferredCronEventParams>(params));
+    OUTCOME_TRY(
+        payload,
+        codec::cbor::decode<CronEventPayload>(params2.callback_payload));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    switch (payload.event_type) {
+      case CronEventType::TempFault: {
+        OUTCOME_TRY(checkTemporaryFaultEvents(runtime, state, payload.sectors));
+        break;
+      }
+      case CronEventType::PreCommitExpiry: {
+        OUTCOME_TRY(checkPrecommitExpiry(
+            runtime, state, payload.sectors, payload.registered_proof));
+        break;
+      }
+      case CronEventType::SectorExpiry: {
+        OUTCOME_TRY(checkSectorExpiry(runtime, state, payload.sectors));
+        break;
+      }
+      case CronEventType::WindowedPoStExpiration: {
+        OUTCOME_TRY(checkPoStProvingPeriodExpiration(runtime, state));
+        break;
+      }
+      case CronEventType::WorkerKeyChange: {
+        OUTCOME_TRY(commitWorkerKeyChange(runtime, state));
+        break;
+      }
+    }
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
@@ -648,5 +854,6 @@ namespace fc::vm::actor::builtin::miner {
        ActorMethod(extendSectorExpiration)},
       {kTerminateSectorsMethodNumber, ActorMethod(terminateSectors)},
       {kDeclareTemporaryFaultsMethodNumber, declareTemporaryFaults},
+      {kOnDeferredCronEventMethodNumber, onDeferredCronEvent},
   };
 }  // namespace fc::vm::actor::builtin::miner
