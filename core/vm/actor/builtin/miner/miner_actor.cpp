@@ -26,9 +26,6 @@ namespace fc::vm::actor::builtin::miner {
   using storage_power::kEnrollCronEventMethodNumber;
   using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
 
-  // TODO: fill
-  static std::map<RegisteredProof, ChainEpoch> max_seal_duration;
-
   outcome::result<Address> resolveOwnerAddress(Runtime &runtime,
                                                const Address &address) {
     OUTCOME_TRY(id, runtime.resolveAddress(address));
@@ -142,6 +139,11 @@ namespace fc::vm::actor::builtin::miner {
       OUTCOME_TRY(runtime.sendFunds(runtime.getImmediateCaller(), extra));
     }
     return outcome::success();
+  }
+
+  outcome::result<EpochDuration> maxSealDuration(RegisteredProof type) {
+    // TODO: seal types
+    return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
   }
 
   ACTOR_METHOD(constructor) {
@@ -278,13 +280,10 @@ namespace fc::vm::actor::builtin::miner {
       return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
     }
 
-    auto duration = max_seal_duration.find(params2.registered_proof);
-    if (duration == max_seal_duration.end()) {
-      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
-    }
+    OUTCOME_TRY(duration, maxSealDuration(params2.registered_proof));
     OUTCOME_TRY(enrollCronEvent(
         runtime,
-        runtime.getCurrentEpoch() + duration->second + 1,
+        runtime.getCurrentEpoch() + duration + 1,
         {CronEventType::PreCommitExpiry, RleBitset{params2.sector}}));
 
     return outcome::success();
