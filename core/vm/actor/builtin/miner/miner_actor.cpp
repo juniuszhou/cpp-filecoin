@@ -47,9 +47,9 @@ namespace fc::vm::actor::builtin::miner {
       return VMExitCode::MINER_ACTOR_MINER_NOT_ACCOUNT;
     }
     if (address.getProtocol() != Protocol::BLS) {
-      OUTCOME_TRY(key_raw,
-                  runtime.send(id, account::kPubkeyAddressMethodNumber, {}, 0));
-      OUTCOME_TRY(key, codec::cbor::decode<Address>(key_raw.return_value));
+      OUTCOME_TRY(key,
+                  runtime.sendR<Address>(
+                      id, account::kPubkeyAddressMethodNumber, {}, 0));
       if (key.getProtocol() != Protocol::BLS) {
         return VMExitCode::MINER_ACTOR_MINER_NOT_BLS;
       }
@@ -61,15 +61,13 @@ namespace fc::vm::actor::builtin::miner {
                                         ChainEpoch event_epoch,
                                         const CronEventPayload &payload) {
     OUTCOME_TRY(payload2, codec::cbor::encode(payload));
-    OUTCOME_TRY(params,
-                codec::cbor::encode(EnrollCronEventParams{
-                    event_epoch,
-                    Buffer{payload2},
-                }));
-    OUTCOME_TRY(runtime.send(kStoragePowerAddress,
-                             kEnrollCronEventMethodNumber,
-                             MethodParams{params},
-                             0));
+    OUTCOME_TRY(runtime.sendP(kStoragePowerAddress,
+                              kEnrollCronEventMethodNumber,
+                              EnrollCronEventParams{
+                                  event_epoch,
+                                  Buffer{payload2},
+                              },
+                              0));
     return outcome::success();
   }
 

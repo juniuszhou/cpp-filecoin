@@ -17,14 +17,8 @@ namespace fc::vm::actor::builtin {
 
   fc::outcome::result<GetControlAddressesReturn> requestMinerControlAddress(
       Runtime &runtime, const Address &miner) {
-    OUTCOME_TRY(
-        result,
-        runtime.send(
-            miner, kGetControlAddressesMethodNumber, {}, TokenAmount{0}));
-    OUTCOME_TRY(
-        addresses,
-        decode<GetControlAddressesReturn>(result.return_value.toVector()));
-    return std::move(addresses);
+    return runtime.sendR<GetControlAddressesReturn>(
+        miner, kGetControlAddressesMethodNumber, {}, 0);
   }
 
 }  // namespace fc::vm::actor::builtin
