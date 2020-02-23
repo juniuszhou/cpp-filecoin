@@ -59,6 +59,17 @@ namespace fc::vm::actor::builtin::storage_power {
     SectorStorageWeightDesc weight;
   };
 
+  struct OnSectorTerminateParams {
+    SectorTermination termination_type;
+    std::vector<SectorStorageWeightDesc> weights;
+    TokenAmount pledge;
+  };
+
+  struct OnSectorTemporaryFaultEffectiveEndParams {
+    std::vector<SectorStorageWeightDesc> weights;
+    TokenAmount pledge;
+  };
+
   struct OnSectorModifyWeightDescParams {
     SectorStorageWeightDesc prev_weight;
     TokenAmount prev_pledge;
@@ -89,6 +100,10 @@ namespace fc::vm::actor::builtin::storage_power {
   CBOR_TUPLE(WithdrawBalanceParameters, miner, requested);
 
   CBOR_TUPLE(OnSectorProveCommitParams, weight)
+
+  CBOR_TUPLE(OnSectorTerminateParams, termination_type, weights, pledge)
+
+  CBOR_TUPLE(OnSectorTemporaryFaultEffectiveEndParams, weights, pledge)
 
   CBOR_TUPLE(OnSectorModifyWeightDescParams,
              prev_weight,
