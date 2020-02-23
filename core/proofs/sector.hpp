@@ -6,13 +6,20 @@
 #ifndef CPP_FILECOIN_CORE_PROOFS_SECTOR_HPP
 #define CPP_FILECOIN_CORE_PROOFS_SECTOR_HPP
 
+#include "primitives/cid/cid.hpp"
+#include "primitives/types.hpp"
 #include "proofs/proofs.hpp"
 
 namespace fc::proofs::sector {
   using common::Buffer;
+  using primitives::ChainEpoch;
+  using primitives::DealId;
+  using primitives::SectorNumber;
 
   using RegisteredProof = int64_t;
   using PoStRandomness = Randomness;
+  using SealRandomness = Randomness;
+  using InteractiveRandomness = Randomness;
 
   struct SealProof {
     Buffer proof;
@@ -59,6 +66,24 @@ namespace fc::proofs::sector {
     std::vector<SectorInfo> eligible_sectors;
   };
 
+  struct OnChainSealVerifyInfo {
+    CID sealed_cid;
+    ChainEpoch interactive_epoch;
+    RegisteredProof registered_proof;
+    SealProof proof;
+    std::vector<DealId> deals;
+    SectorNumber sector;
+    ChainEpoch seal_rand_epoch;
+  };
+
+  struct SealVerifyInfo {
+    SectorId sector;
+    OnChainSealVerifyInfo info;
+    SealRandomness randomness;
+    InteractiveRandomness interactive_randomness;
+    CID unsealed_cid;
+  };
+
   CBOR_TUPLE(SealProof, proof)
 
   CBOR_TUPLE(PoStProof, proof)
@@ -75,6 +100,15 @@ namespace fc::proofs::sector {
              challenge_index)
 
   CBOR_TUPLE(OnChainPoStVerifyInfo, proof_type, candidates, proofs)
+
+  CBOR_TUPLE(OnChainSealVerifyInfo,
+             sealed_cid,
+             interactive_epoch,
+             registered_proof,
+             proof,
+             deals,
+             sector,
+             seal_rand_epoch)
 }  // namespace fc::proofs::sector
 
 #endif  // CPP_FILECOIN_CORE_PROOFS_SECTOR_HPP
