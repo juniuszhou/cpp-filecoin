@@ -7,7 +7,6 @@
 #define CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MARKET_ACTOR_HPP
 
 #include "codec/cbor/streams_annotation.hpp"
-#include "primitives/chain_epoch/chain_epoch.hpp"
 #include "primitives/types.hpp"
 #include "vm/actor/actor_method.hpp"
 
