@@ -592,6 +592,49 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(declareTemporaryFaults) {
+    OUTCOME_TRY(params2,
+                decodeActorParams<DeclareTemporaryFaultsParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    if (runtime.getImmediateCaller() != state.info.worker) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    if (params2.duration <= 0) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+
+    Amt amt_sectors{runtime.getIpfsDatastore(), state.sectors};
+    auto effective_at =
+        runtime.getCurrentEpoch() + kDeclaredFaultEffectiveDelay;
+    std::vector<SectorStorageWeightDesc> weights;
+    for (auto sector_num : params2.sectors) {
+      if (state.fault_set.find(sector_num) != state.fault_set.end()) {
+        continue;
+      }
+      OUTCOME_TRY(sector, amt_sectors.getCbor<SectorOnChainInfo>(sector_num));
+      weights.push_back(asStorageWeightDesc(state.info.sector_size, sector));
+      sector.declared_fault_epoch = effective_at;
+      sector.declared_fault_duration = params2.duration;
+      OUTCOME_TRY(amt_sectors.setCbor(sector_num, sector));
+    }
+    OUTCOME_TRY(amt_sectors.flush());
+    state.sectors = amt_sectors.cid();
+    OUTCOME_TRY(runtime.commitState(state));
+    auto required_fee = temporaryFaultFee(weights, params2.duration);
+
+    OUTCOME_TRY(confirmPaymentAndRefundChange(runtime, required_fee));
+    OUTCOME_TRY(runtime.sendFunds(kBurntFundsActorAddress, required_fee));
+
+    CronEventPayload cron{
+        .event_type = CronEventType::TempFault,
+        .sectors = params2.sectors,
+    };
+    OUTCOME_TRY(enrollCronEvent(runtime, effective_at, cron));
+    OUTCOME_TRY(
+        enrollCronEvent(runtime, effective_at + params2.duration, cron));
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
@@ -604,5 +647,6 @@ namespace fc::vm::actor::builtin::miner {
       {kExtendSectorExpirationMethodNumber,
        ActorMethod(extendSectorExpiration)},
       {kTerminateSectorsMethodNumber, ActorMethod(terminateSectors)},
+      {kDeclareTemporaryFaultsMethodNumber, declareTemporaryFaults},
   };
 }  // namespace fc::vm::actor::builtin::miner

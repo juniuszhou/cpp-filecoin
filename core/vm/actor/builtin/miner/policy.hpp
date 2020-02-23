@@ -6,11 +6,13 @@
 #ifndef CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MINER_POLICY_HPP
 #define CPP_FILECOIN_CORE_VM_ACTOR_BUILTIN_MINER_POLICY_HPP
 
-#include "primitives/chain_epoch/chain_epoch.hpp"
+#include "primitives/types.hpp"
 
 namespace fc::vm::actor::builtin::miner {
   using primitives::ChainEpoch;
   using primitives::EpochDuration;
+  using primitives::SectorStorageWeightDesc;
+  using primitives::TokenAmount;
 
   // TODO(turuslan): FIL-128 move to storage power actor
   constexpr EpochDuration kWindowedPostChallengeDuration{240};
@@ -29,7 +31,15 @@ namespace fc::vm::actor::builtin::miner {
 
   constexpr EpochDuration kChainFinalityish{500};
 
+  constexpr EpochDuration kDeclaredFaultEffectiveDelay{20};
+
   inline BigInt precommitDeposit(uint64_t sector_size, ChainEpoch duration) {
+    return 0;
+  }
+
+  inline TokenAmount temporaryFaultFee(
+      const std::vector<SectorStorageWeightDesc> &weights,
+      EpochDuration duration) {
     return 0;
   }
 }  // namespace fc::vm::actor::builtin::miner
