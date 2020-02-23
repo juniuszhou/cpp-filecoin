@@ -108,6 +108,9 @@ namespace fc::vm::runtime {
     outcome::result<bool> verifyPoSt(uint64_t sector_size,
                                      const PoStVerifyInfo &info) override;
 
+    outcome::result<bool> verifySeal(uint64_t sector_size,
+                                     const SealVerifyInfo &info) override;
+
    private:
     outcome::result<Actor> getOrCreateActor(const Address &address);
     std::shared_ptr<Runtime> createRuntime(

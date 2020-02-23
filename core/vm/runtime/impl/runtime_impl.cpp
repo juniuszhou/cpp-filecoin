@@ -182,6 +182,12 @@ fc::outcome::result<bool> RuntimeImpl::verifyPoSt(uint64_t sector_size,
   return RuntimeError::UNKNOWN;
 }
 
+fc::outcome::result<bool> RuntimeImpl::verifySeal(uint64_t sector_size,
+                                                  const SealVerifyInfo &info) {
+  // TODO(turuslan): FIL-112 connect verifySeal from proofs
+  return RuntimeError::UNKNOWN;
+}
+
 fc::outcome::result<void> RuntimeImpl::chargeGas(const BigInt &amount) {
   gas_used_ = gas_used_ + amount;
   if (gas_available_ != kInfiniteGas && gas_available_ < gas_used_) {

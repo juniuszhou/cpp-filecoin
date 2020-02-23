@@ -36,6 +36,7 @@ namespace fc::vm::runtime {
   using primitives::ChainEpoch;
   using primitives::address::Address;
   using proofs::sector::PoStVerifyInfo;
+  using proofs::sector::SealVerifyInfo;
   using storage::ipfs::IpfsDatastore;
   using Serialization = Buffer;
 
@@ -147,6 +148,10 @@ namespace fc::vm::runtime {
     /// Verify PoSt
     virtual outcome::result<bool> verifyPoSt(uint64_t sector_size,
                                              const PoStVerifyInfo &info) = 0;
+
+    /// Verify seal
+    virtual outcome::result<bool> verifySeal(uint64_t sector_size,
+                                             const SealVerifyInfo &info) = 0;
 
     /// Send funds
     inline auto sendFunds(const Address &to, BigInt value) {
