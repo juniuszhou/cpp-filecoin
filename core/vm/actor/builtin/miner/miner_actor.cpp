@@ -141,8 +141,7 @@ namespace fc::vm::actor::builtin::miner {
       return VMExitCode::MINER_ACTOR_INSUFFICIENT_FUNDS;
     }
     if (extra > 0) {
-      OUTCOME_TRY(runtime.send(
-          runtime.getImmediateCaller(), kSendMethodNumber, {}, extra));
+      OUTCOME_TRY(runtime.sendFunds(runtime.getImmediateCaller(), extra));
     }
     return outcome::success();
   }

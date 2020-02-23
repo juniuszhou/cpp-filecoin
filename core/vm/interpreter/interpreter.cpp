@@ -31,7 +31,6 @@ namespace fc::vm::interpreter {
   using actor::Actor;
   using actor::InvokerImpl;
   using actor::kCronAddress;
-  using actor::kSendMethodNumber;
   using actor::kSystemActorAddress;
   using actor::builtin::cron::kEpochTickMethodNumber;
   using actor::builtin::miner::kSubmitElectionPoStMethodNumber;

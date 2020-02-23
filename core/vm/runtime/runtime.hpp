@@ -148,6 +148,12 @@ namespace fc::vm::runtime {
     virtual outcome::result<bool> verifyPoSt(uint64_t sector_size,
                                              const PoStVerifyInfo &info) = 0;
 
+    /// Send funds
+    inline auto sendFunds(const Address &to, BigInt value) {
+      // kSendMethodNumber circular dependency
+      return send(to, {0}, {}, value);
+    }
+
     /// Get decoded current actor state
     template <typename T>
     outcome::result<T> getCurrentActorStateCbor() {
