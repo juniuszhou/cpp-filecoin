@@ -34,8 +34,11 @@ namespace fc::vm::actor::builtin::miner {
   using storage_power::EnrollCronEventParams;
   using storage_power::kEnrollCronEventMethodNumber;
   using storage_power::kOnMinerSurprisePoStSuccessMethodNumber;
+  using storage_power::kOnSectorModifyWeightDescMethodNumber;
   using storage_power::kOnSectorProveCommitMethodNumber;
+  using storage_power::OnSectorModifyWeightDescParams;
   using storage_power::OnSectorProveCommitParams;
+  using storage_power::SectorStorageWeightDesc;
 
   outcome::result<Address> resolveOwnerAddress(Runtime &runtime,
                                                const Address &address) {
@@ -197,6 +200,15 @@ namespace fc::vm::actor::builtin::miner {
             .unsealed_cid = comm_d,
         }));
     return outcome::success();
+  }
+
+  SectorStorageWeightDesc asStorageWeightDesc(SectorSize sector_size,
+                                              const SectorOnChainInfo &sector) {
+    return {
+        .sector_size = sector_size,
+        .duration = sector.info.expiration - sector.activation_epoch,
+        .deal_weight = sector.deal_weight,
+    };
   }
 
   ACTOR_METHOD(constructor) {
@@ -446,6 +458,46 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD(extendSectorExpiration) {
+    OUTCOME_TRY(params2,
+                decodeActorParams<ExtendSectorExpirationParams>(params));
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<MinerActorState>());
+    if (runtime.getImmediateCaller() != state.info.worker) {
+      return VMExitCode::MINER_ACTOR_WRONG_CALLER;
+    }
+    Amt amt_sectors{runtime.getIpfsDatastore(), state.sectors};
+
+    OUTCOME_TRY(sector, amt_sectors.getCbor<SectorOnChainInfo>(params2.sector));
+
+    auto prev_weight{asStorageWeightDesc(state.info.sector_size, sector)};
+    auto extension = params2.new_expiration - sector.info.expiration;
+    if (extension < 0) {
+      return VMExitCode::MINER_ACTOR_ILLEGAL_ARGUMENT;
+    }
+    auto new_weight{prev_weight};
+    new_weight.duration = prev_weight.duration + extension;
+
+    OUTCOME_TRY(new_pledge,
+                runtime.sendPR<TokenAmount>(
+                    kStoragePowerAddress,
+                    kOnSectorModifyWeightDescMethodNumber,
+                    OnSectorModifyWeightDescParams{
+                        .prev_weight = prev_weight,
+                        .prev_pledge = sector.pledge_requirement,
+                        .new_weight = new_weight,
+                    },
+                    0));
+
+    sector.info.expiration = params2.new_expiration;
+    sector.pledge_requirement = new_pledge;
+    OUTCOME_TRY(amt_sectors.setCbor(sector.info.sector, sector));
+    OUTCOME_TRY(amt_sectors.flush());
+
+    state.sectors = amt_sectors.cid();
+    OUTCOME_TRY(runtime.commitState(state));
+    return outcome::success();
+  }
+
   const ActorExports exports = {
       {kConstructorMethodNumber, ActorMethod(constructor)},
       {kGetControlAddressesMethodNumber, ActorMethod(controlAdresses)},
@@ -455,5 +507,7 @@ namespace fc::vm::actor::builtin::miner {
       {kOnDeleteMinerMethodNumber, ActorMethod(onDeleteMiner)},
       {kPreCommitSectorMethodNumber, ActorMethod(preCommitSector)},
       {kProveCommitSectorMethodNumber, ActorMethod(proveCommitSector)},
+      {kExtendSectorExpirationMethodNumber,
+       ActorMethod(extendSectorExpiration)},
   };
 }  // namespace fc::vm::actor::builtin::miner
